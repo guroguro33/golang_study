@@ -1,7 +1,6 @@
-package main
+package context
 
 import (
-	"context"
 	"fmt"
 	"time"
 )
@@ -13,7 +12,7 @@ func longProcess(ctx context.Context, ch chan string) {
 	ch <- "result"
 }
 
-func main() {
+func context() {
 	ch := make(chan string)
 	// 今回のテーマのcontextを作成
 	ctx := context.Background()
