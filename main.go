@@ -1,34 +1,27 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"time"
+	"log"
+	"os"
 )
 
-func longProcess(ctx context.Context, ch chan string) {
-	fmt.Println("run")
-	time.Sleep(2 * time.Second) // 2秒待機
-	fmt.Println("finish")
-	ch <- "result"
-}
-
 func main() {
-	ch := make(chan string)
-	// 今回のテーマのcontextを作成
-	ctx := context.Background()
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
-	defer cancel()
-	go longProcess(ctx, ch) // 作成したctxを渡す（特に使わないが）
+	// ioutilでのファイルの操作が可能（ファイル操作に特化） 最新はioとosに移行
+	// os.ReadFileがversion1.16以降は推奨されるようだ
+	// ファイル操作はosパッケージに移ったようだ
+	// content, err := ioutil.ReadFile("main.go") // v1.15まで
+	content, err := os.ReadFile("main.go")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(content))
 
-	for {
-		select { // for-selectでchが入ってくるまで待機している
-		case <-ctx.Done(): // ctxが実行されたらこちらに入る
-			fmt.Println(ctx.Err())
-			return
-		case <-ch:
-			fmt.Println("success")
-			return
-		}
+	// 簡易文つきif文
+	// if 簡易文; 条件 {
+	//	条件を満たす場合の式
+	//}
+	if err := os.WriteFile("os_tmp.go", content, 0666); err != nil { // WriteFile(ファイル名、, 変数(ファイルに書きたいもの), パーミッション)
+		log.Fatalln(err)
 	}
 }
