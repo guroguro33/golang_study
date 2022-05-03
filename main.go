@@ -1,44 +1,43 @@
 package main
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
+	"context"
 	"fmt"
+	"time"
+
+	"golang.org/x/sync/semaphore"
 )
 
-var DB = map[string]string{
-	"User1Key": "User1Secret",
-	"User2Key": "User2Secret",
-}
+// semaphoreのNewWeightedで同時に実行できる最大ゴルーチン数を設定する
+var s *semaphore.Weighted = semaphore.NewWeighted(1)
 
-func Server(apiKey string, sign string, data []byte) {
-	apiSecret := DB[apiKey]
-	// 秘密鍵を使ってハッシュ化させる
-	h := hmac.New(sha256.New, []byte(apiSecret))
-	// ハッシュにdataを追加
-	h.Write(data)
-	// nilを追加してhexにエンコードする
-	expectedHMAC := hex.EncodeToString(h.Sum(nil))
-	// エンコードしたexpectedHMACとクライアント側でハッシュ化したsignを比較
-	fmt.Println(sign == expectedHMAC) // true
+func longProcess(ctx context.Context) {
+	// TryAcquireでセマフォを1つ取得し、成功したらtrueを返す
+	// 他のゴルーチンはセマフォを取得できず、falseが返り、待機ではなくreturnで終了してしまう
+	isAcquire := s.TryAcquire(1)
+	if !isAcquire {
+		fmt.Println("cloud not get lock")
+		return
+	}
+
+	// // Acquireでセマフォを１つ取得する、今回は最大１のため、セマフォは0になり、他のゴルーチンは待機状態になる
+	// if err := s.Acquire(ctx, 1); err != nil {
+	// 	fmt.Println(err)
+	// 	return
+	// }
+	// セマフォをリリースして１に戻す。
+	defer s.Release(1)
+	fmt.Println("Wait...")
+	time.Sleep(1 * time.Second)
+	fmt.Println("Done")
 }
 
 func main() {
-	const apiKey = "User1Key"
-	const apiSecret = "User1Secret"
-
-	// ハッシュ化したいメッセージdataをbyteスライスにして準備
-	data := []byte("data")
-	// hmac.New(sha256.New, key []byte)でhmacによるハッシュ化を行う
-	h := hmac.New(sha256.New, []byte(apiSecret))
-	// dataをハッシュに追加する
-	h.Write(data)
-	// nilを追加してhexにエンコードする
-	sign := hex.EncodeToString(h.Sum(nil))
-
-	fmt.Println(sign) // 出力:80f11c0d1c2c4c7205d11a9be6bff199371b423ad07cffa7826fff1273f7e449
-
-	// サーバーとハッシュが一致するかチェック
-	Server(apiKey, sign, data)
+	// 空のcontextを生成
+	ctx := context.TODO()
+	// fmt.Println(ctx)
+	go longProcess(ctx)
+	go longProcess(ctx)
+	go longProcess(ctx)
+	time.Sleep(5 * time.Second)
 }
