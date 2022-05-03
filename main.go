@@ -1,43 +1,35 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"time"
 
-	"golang.org/x/sync/semaphore"
+	"gopkg.in/ini.v1"
 )
 
-// semaphoreのNewWeightedで同時に実行できる最大ゴルーチン数を設定する
-var s *semaphore.Weighted = semaphore.NewWeighted(1)
+// config.iniファイルを生成し、変数を定義する
+// 変数の構造体を作成
+type ConfigList struct {
+	Port      int
+	DbName    string
+	SQLDriver string
+}
 
-func longProcess(ctx context.Context) {
-	// TryAcquireでセマフォを1つ取得し、成功したらtrueを返す
-	// 他のゴルーチンはセマフォを取得できず、falseが返り、待機ではなくreturnで終了してしまう
-	isAcquire := s.TryAcquire(1)
-	if !isAcquire {
-		fmt.Println("cloud not get lock")
-		return
+// 定義した構造体の変数を宣言
+var Config ConfigList
+
+func init() {
+	// configファイルを読み込み
+	cfg, _ := ini.Load("config.ini")
+	// 値を読み込み
+	Config = ConfigList{
+		Port:      cfg.Section("web").Key("port").MustInt(),
+		DbName:    cfg.Section("db").Key("name").MustString("example.sql"), // Must系の場合、第１引数に初期値を設定
+		SQLDriver: cfg.Section("db").Key("driver").String(),
 	}
-
-	// // Acquireでセマフォを１つ取得する、今回は最大１のため、セマフォは0になり、他のゴルーチンは待機状態になる
-	// if err := s.Acquire(ctx, 1); err != nil {
-	// 	fmt.Println(err)
-	// 	return
-	// }
-	// セマフォをリリースして１に戻す。
-	defer s.Release(1)
-	fmt.Println("Wait...")
-	time.Sleep(1 * time.Second)
-	fmt.Println("Done")
 }
 
 func main() {
-	// 空のcontextを生成
-	ctx := context.TODO()
-	// fmt.Println(ctx)
-	go longProcess(ctx)
-	go longProcess(ctx)
-	go longProcess(ctx)
-	time.Sleep(5 * time.Second)
+	fmt.Printf("%T %v\n", Config.Port, Config.Port)
+	fmt.Printf("%T %v\n", Config.DbName, Config.DbName)
+	fmt.Printf("%T %v\n", Config.SQLDriver, Config.SQLDriver)
 }
