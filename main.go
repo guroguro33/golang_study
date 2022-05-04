@@ -1,35 +1,54 @@
 package main
 
 import (
-	"fmt"
+	"log"
+	"net/url"
 
-	"gopkg.in/ini.v1"
+	"github.com/gorilla/websocket"
 )
 
-// config.iniファイルを生成し、変数を定義する
-// 変数の構造体を作成
-type ConfigList struct {
-	Port      int
-	DbName    string
-	SQLDriver string
+type JsonRPC2 struct {
+	Version string      `json:"jsonrpc"`
+	Method  string      `json:"method"`
+	Params  interface{} `json:"params"`
+	Result  interface{} `json:"result,omitempty"`
+	Id      *int        `json:"id,omitempty"`
 }
 
-// 定義した構造体の変数を宣言
-var Config ConfigList
-
-func init() {
-	// configファイルを読み込み
-	cfg, _ := ini.Load("config.ini")
-	// 値を読み込み
-	Config = ConfigList{
-		Port:      cfg.Section("web").Key("port").MustInt(),
-		DbName:    cfg.Section("db").Key("name").MustString("example.sql"), // Must系の場合、第１引数に初期値を設定
-		SQLDriver: cfg.Section("db").Key("driver").String(),
-	}
+type SubscribeParams struct {
+	Channel string `json:"channel"`
 }
 
 func main() {
-	fmt.Printf("%T %v\n", Config.Port, Config.Port)
-	fmt.Printf("%T %v\n", Config.DbName, Config.DbName)
-	fmt.Printf("%T %v\n", Config.SQLDriver, Config.SQLDriver)
+	u := url.URL{Scheme: "wss", Host: "ws.lightstream.bitflyer.com", Path: "/json-rpc"}
+	log.Printf("connecting to %s", u.String())
+	log.Println(u.String())
+
+	// Dial関数でWebSocketを確立する
+	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	if err != nil {
+		log.Fatal("dial:", err)
+	}
+	defer c.Close()
+
+	if err := c.WriteJSON(&JsonRPC2{
+		Version: "2.0",
+		Method:  "subscribe",
+		Params:  &SubscribeParams{"lightning_ticker_BTC_JPY"},
+	}); err != nil {
+		log.Fatal("subscribe:", err)
+		return
+	}
+
+	for {
+		message := new(JsonRPC2)
+		if err := c.ReadJSON(message); err != nil {
+			log.Println("read:", err)
+			return
+		}
+
+		if message.Method == "channelMessage" {
+			log.Println(message.Params)
+		}
+	}
 }
